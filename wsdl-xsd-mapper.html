@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WSDL / XSD Mapper — Comparateur d'éléments</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --panel: #1e293b;
+    --panel-2: #273449;
+    --border: #334155;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --accent: #38bdf8;
+    --left: #818cf8;
+    --right: #34d399;
+    --match: #facc15;
+    --only-left: #f472b6;
+    --only-right: #fb923c;
+    --warn: #f97316;
+    --danger: #ef4444;
+    --input-bg: #0b1220;
+    --header-bg: linear-gradient(90deg, #1e293b, #0f172a);
+  }
+  :root[data-theme="light"] {
+    --bg: #e9eef4;
+    --panel: #ffffff;
+    --panel-2: #e6ecf3;
+    --border: #bcc8d6;
+    --text: #0b1220;
+    --muted: #475569;
+    --accent: #0369a1;
+    --left: #4338ca;
+    --right: #047857;
+    --match: #b8860b;
+    --only-left: #be185d;
+    --only-right: #c2410c;
+    --warn: #ea580c;
+    --danger: #dc2626;
+    --input-bg: #f1f5f9;
+    --header-bg: linear-gradient(90deg, #dbe3ec, #e9eef4);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+  }
+  header {
+    padding: 14px 20px;
+    background: var(--header-bg);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  header .sub { color: var(--muted); font-size: 12px; }
+  .badge { background: var(--panel-2); padding: 2px 8px; border-radius: 999px; font-size: 11px; color: var(--muted); }
+
+  .loaders {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 14px;
+    padding: 16px 20px;
+    align-items: stretch;
+  }
+  .drop {
+    border: 1.5px dashed var(--border);
+    border-radius: 10px;
+    background: var(--panel);
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: border-color .15s, background .15s;
+  }
+  .drop.left  { border-left: 4px solid var(--left); }
+  .drop.right { border-left: 4px solid var(--right); }
+  .drop.dragover { border-color: var(--accent); background: var(--panel-2); }
+  .drop .title { font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .drop .dot { width: 9px; height: 9px; border-radius: 50%; }
+  .left .dot { background: var(--left); }
+  .right .dot { background: var(--right); }
+  .drop .hint { color: var(--muted); font-size: 11px; }
+  .drop textarea {
+    width: 100%; min-height: 90px; resize: vertical;
+    background: var(--input-bg); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px;
+  }
+  .drop .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .drop .fileinfo { font-size: 11px; color: var(--accent); }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px; padding: 2px 5px 2px 9px; font-size: 11px; }
+  .chip.bad { border-color: var(--danger); color: var(--danger); }
+  .chip .x { cursor: pointer; width: 15px; height: 15px; line-height: 14px; text-align: center; border-radius: 50%; color: var(--muted); }
+  .chip .x:hover { background: var(--danger); color: #fff; }
+  .chip .cnt { color: var(--muted); font-size: 10px; }
+  .center-actions { display: flex; flex-direction: column; justify-content: center; gap: 8px; }
+
+  button {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 7px 12px; cursor: pointer; font-size: 12px; font-weight: 500;
+    transition: background .12s, border-color .12s;
+  }
+  button:hover { background: #344056; }
+  button.primary { background: var(--accent); color: #04222e; border-color: var(--accent); font-weight: 600; }
+  button.primary:hover { background: #5cc9fa; }
+  button.ghost { background: transparent; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  label.filebtn { display: inline-block; }
+  input[type=file] { display: none; }
+
+  .toolbar {
+    display: flex; align-items: center; gap: 10px; padding: 8px 20px;
+    background: var(--panel); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .toolbar .sep { width: 1px; height: 20px; background: var(--border); }
+  .stats { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+  .stat { padding: 3px 9px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+  .stat.match     { background: rgba(250,204,21,.15); color: var(--match); }
+  .stat.warn      { background: rgba(249,115,22,.18); color: var(--warn); }
+  .stat.onlyleft  { background: rgba(244,114,182,.15); color: var(--only-left); }
+  .stat.onlyright { background: rgba(251,146,60,.15); color: var(--only-right); }
+  .stat.total     { background: var(--panel-2); color: var(--muted); }
+
+  .search { background: var(--input-bg); border: 1px solid var(--border); border-radius: 6px; padding: 6px 9px; color: var(--text); font-size: 12px; width: 200px; }
+  .chk { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); cursor: pointer; user-select: none; }
+  .chk input { accent-color: var(--accent); }
+
+  .tabs { display: flex; gap: 4px; padding: 0 20px; background: var(--panel); border-bottom: 1px solid var(--border); }
+  .tab { padding: 9px 14px; cursor: pointer; border-bottom: 2px solid transparent; color: var(--muted); font-size: 12px; font-weight: 500; }
+  .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* Mapping view */
+  #mapWrap { position: relative; display: grid; grid-template-columns: 1fr 90px 1fr; height: calc(100vh - 250px); min-height: 360px; }
+  .treepanel { overflow: auto; padding: 8px 4px; }
+  .treepanel.left  { grid-column: 1; border-right: 1px solid var(--border); }
+  .treepanel.right { grid-column: 3; border-left: 1px solid var(--border); }
+  #linkLayer { pointer-events: none; grid-column: 1 / -1; }
+  #mapWrap .colhead { position: sticky; top: 0; background: var(--panel); padding: 6px 12px; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; z-index: 5; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .left .colhead { color: var(--left); }
+  .right .colhead { color: var(--right); }
+
+  .node { display: flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 5px; cursor: pointer; white-space: nowrap; position: relative; width: max-content; min-width: 100%; }
+  .node:hover { background: var(--panel-2); }
+  .node.selected { background: rgba(56,189,248,.2); outline: 1px solid var(--accent); }
+  .node.matched .nm { color: var(--text); }
+  .node.unmatched .nm { color: var(--muted); }
+  .node .tw { width: 12px; text-align: center; color: var(--muted); flex: 0 0 12px; font-size: 10px; }
+  .node .nm { font-weight: 500; }
+  .node .ty { color: var(--muted); font-size: 10px; font-family: ui-monospace, monospace; }
+  .node .card { color: #64748b; font-size: 10px; }
+  .node .occ { color: var(--accent); font-size: 10px; font-family: ui-monospace, monospace; background: rgba(56,189,248,.12); padding: 0 4px; border-radius: 4px; }
+  .node .anchor { width: 7px; height: 7px; border-radius: 50%; background: var(--border); flex: 0 0 7px; }
+  .node.matched .anchor { background: var(--match); }
+  .node.warn .anchor { background: var(--warn); }
+  .node .warnicon { font-size: 10px; cursor: help; }
+  .node.attr .nm { font-style: italic; }
+  .node.attr .nm::before { content: "@"; color: var(--muted); }
+  .children { margin-left: 14px; }
+  .hidden { display: none !important; }
+  .hl { background: rgba(56,189,248,.25); border-radius: 3px; }
+
+  /* Diff table view */
+  #diffView { padding: 16px 20px; overflow: auto; height: calc(100vh - 250px); }
+  table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+  th { position: sticky; top: 0; background: var(--panel); color: var(--muted); font-weight: 600; cursor: pointer; }
+  tr:hover td { background: rgba(255,255,255,.02); }
+  td.path { font-family: ui-monospace, monospace; font-size: 11px; }
+  td.occ-cell { color: var(--accent); white-space: nowrap; }
+  .pill { padding: 1px 7px; border-radius: 999px; font-size: 10px; font-weight: 600; }
+  .pill.match     { background: rgba(250,204,21,.15); color: var(--match); }
+  .pill.warn      { background: rgba(249,115,22,.18); color: var(--warn); }
+  .pill.onlyleft  { background: rgba(244,114,182,.15); color: var(--only-left); }
+  .pill.onlyright { background: rgba(251,146,60,.15); color: var(--only-right); }
+  td.celldiff { color: var(--warn); font-weight: 600; }
+
+  /* Validator view */
+  #validView { padding: 16px 20px; overflow: auto; height: calc(100vh - 250px); }
+  .valsummary { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+  .valsummary .pill { padding: 5px 12px; font-size: 12px; }
+  .valgroup { margin-bottom: 22px; }
+  .valhead { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; margin: 0 0 8px; padding-left: 8px; border-left: 3px solid; }
+  .valhead.left  { color: var(--left);  border-color: var(--left); }
+  .valhead.right { color: var(--right); border-color: var(--right); }
+  .valcard { border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; background: var(--panel); }
+  .valcard.ok  { border-left: 4px solid var(--right); }
+  .valcard.bad { border-left: 4px solid var(--danger); }
+  .valcard.muted { color: var(--muted); }
+  .valtitle { font-weight: 600; font-size: 13px; margin-bottom: 3px; }
+  .valcard.bad .valtitle { color: var(--danger); }
+  .valmsg { font-size: 12px; color: var(--muted); font-family: ui-monospace, monospace; white-space: pre-wrap; }
+  .valctx { margin: 8px 0 0; padding: 10px 12px; background: var(--input-bg); border: 1px solid var(--border); border-radius: 6px; font-size: 12px; font-family: ui-monospace, "SF Mono", Menlo, monospace; overflow-x: auto; color: var(--text); line-height: 1.5; }
+  .valctx .caret { color: var(--danger); font-weight: 700; }
+  .valctx .lno { color: #475569; user-select: none; }
+  .valsub { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); margin: 14px 0 6px; }
+  .valcard.warn { border-left: 4px solid var(--warn); }
+  .valcard.info { border-left: 4px solid var(--accent); }
+  .valcard .valtitle.warnt { color: var(--warn); }
+  .valitems { margin: 6px 0 0; padding-left: 0; list-style: none; font-size: 12px; }
+  .valitems li { padding: 2px 0; font-family: ui-monospace, monospace; color: var(--text); }
+  .valitems code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
+  .valitems .dim { color: var(--muted); }
+
+  .empty { padding: 60px 20px; text-align: center; color: var(--muted); }
+  .empty svg { opacity: .4; }
+  .err { color: var(--danger); font-size: 12px; margin-top: 6px; }
+  .legend { display: flex; gap: 14px; font-size: 11px; color: var(--muted); padding: 6px 20px; align-items: center; flex-wrap: wrap; }
+  .legend .key { display: inline-flex; align-items: center; gap: 5px; }
+  .legend .swatch { width: 18px; height: 3px; border-radius: 2px; }
+  footer { padding: 8px 20px; color: #475569; font-size: 11px; border-top: 1px solid var(--border); }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>🔗 WSDL / XSD Mapper</h1>
+  <span class="sub">Comparateur & mapping d'éléments — Réforme facturation électronique</span>
+  <span class="badge">100% local · hors-ligne · aucune donnée envoyée</span>
+  <button class="ghost" id="themeBtn" onclick="toggleTheme()" title="Basculer thème clair / sombre" style="margin-left:auto">🌙 Sombre</button>
+</header>
+
+<div class="loaders">
+  <div class="drop left" id="dropL">
+    <div class="title"><span class="dot"></span> Côté&nbsp;1 (Source)</div>
+    <div class="hint">WSDL/XSD — glisse <b>un ou plusieurs</b> fichiers (schéma + ses <code>import</code>/<code>include</code>), choisis-les, ou colle du XML.</div>
+    <div class="row">
+      <label class="filebtn"><button onclick="this.parentNode.querySelector('input').click()">📁 Ajouter des fichiers</button><input type="file" multiple accept=".wsdl,.xsd,.xml,text/xml" onchange="loadFile(this,'L')"></label>
+      <span class="fileinfo" id="infoL"></span>
+    </div>
+    <div class="chips" id="chipsL"></div>
+    <textarea id="taL" placeholder="…ou colle ton WSDL / XSD ici"></textarea>
+    <div class="err" id="errL"></div>
+  </div>
+
+  <div class="center-actions">
+    <button class="primary" onclick="run()">⇄ Comparer</button>
+    <button class="ghost" onclick="loadSample()">Exemple</button>
+    <button class="ghost" onclick="swapSides()">⇆ Inverser</button>
+    <button class="ghost" onclick="clearAll()">Vider</button>
+  </div>
+
+  <div class="drop right" id="dropR">
+    <div class="title"><span class="dot"></span> Côté&nbsp;2 (Cible)</div>
+    <div class="hint">WSDL/XSD — glisse <b>un ou plusieurs</b> fichiers (schéma + ses <code>import</code>/<code>include</code>), choisis-les, ou colle du XML.</div>
+    <div class="row">
+      <label class="filebtn"><button onclick="this.parentNode.querySelector('input').click()">📁 Ajouter des fichiers</button><input type="file" multiple accept=".wsdl,.xsd,.xml,text/xml" onchange="loadFile(this,'R')"></label>
+      <span class="fileinfo" id="infoR"></span>
+    </div>
+    <div class="chips" id="chipsR"></div>
+    <textarea id="taR" placeholder="…ou colle ton WSDL / XSD ici"></textarea>
+    <div class="err" id="errR"></div>
+  </div>
+</div>
+
+<div class="toolbar">
+  <input class="search" id="search" placeholder="🔍 Filtrer les champs…" oninput="applyFilter()">
+  <label class="chk"><input type="checkbox" id="onlyDiff" onchange="render()"> Différences seulement</label>
+  <label class="chk"><input type="checkbox" id="autoMap" checked onchange="toggleAuto()"> Mapping auto</label>
+  <label class="chk"><input type="checkbox" id="matchPath" onchange="run()"> Apparier par chemin complet</label>
+  <button class="ghost" id="clearLinksBtn" onclick="clearManualLinks()" title="Supprimer tous les mappings manuels">↺ Vider mappings</button>
+  <div class="sep"></div>
+  <button class="ghost" onclick="expandAll(true)">Tout déplier</button>
+  <button class="ghost" onclick="expandAll(false)">Tout replier</button>
+  <div class="sep"></div>
+  <button class="ghost" onclick="exportCSV()">⬇ CSV</button>
+  <button class="ghost" onclick="exportJSON()">⬇ JSON</button>
+  <div class="stats" id="stats"></div>
+</div>
+
+<div class="legend" id="legend" style="display:none">
+  <span class="key"><span class="swatch" style="background:var(--match)"></span> Apparié (identique)</span>
+  <span class="key"><span class="swatch" style="background:var(--warn)"></span> ⚠ Apparié avec écart (type / cardinalité)</span>
+  <span class="key"><span class="swatch" style="background:var(--only-left)"></span> Uniquement Fichier 1</span>
+  <span class="key"><span class="swatch" style="background:var(--only-right)"></span> Uniquement Fichier 2</span>
+  <span class="key">💡 Clique un champ à gauche puis à droite pour créer un mapping manuel.</span>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="map" onclick="switchTab('map')">🗺️ Vue Mapping</div>
+  <div class="tab" data-tab="diff" onclick="switchTab('diff')">📋 Vue Comparaison</div>
+  <div class="tab" data-tab="valid" onclick="switchTab('valid')">🛡️ Validateur</div>
+</div>
+
+<div class="view active" id="mapView">
+  <div id="mapWrap">
+    <div class="treepanel left" id="treeL"><div class="colhead">Fichier 1</div><div id="treeLbody"></div></div>
+    <svg id="linkLayer" style="position:absolute;left:0;top:0;width:100%;height:100%"></svg>
+    <div class="treepanel right" id="treeR"><div class="colhead">Fichier 2</div><div id="treeRbody"></div></div>
+    <div class="empty" id="mapEmpty" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px">
+      <div style="font-size:40px">🗺️</div>
+      <div>Charge deux fichiers WSDL/XSD puis clique <b>Comparer</b>.</div>
+    </div>
+  </div>
+</div>
+
+<div class="view" id="diffViewTab">
+  <div id="diffView"></div>
+</div>
+
+<div class="view" id="validViewTab">
+  <div id="validView"></div>
+</div>
+
+<footer>Astuce : un WSDL contient souvent ses schémas dans <code>&lt;wsdl:types&gt;</code> — ils sont automatiquement extraits. Les types globaux sont résolus pour construire l'arborescence des champs.</footer>
+
+<script>
+/* ============================ State ============================ */
+let MODEL = { L: null, R: null };   // parsed models
+let TREE  = { L: null, R: null };   // resolved field trees (root nodes)
+let MATCH = new Map();              // nodeKey(L) -> nodeKey(R)  and reverse
+let manualLinks = [];              // [{l,r}]
+let NODES = { L: {}, R: {} };      // key -> node ref
+let selected = { L: null, R: null };
+
+/* ============================ Loading ============================ */
+let SOURCES = { L: [], R: [] };   // [{name, text}] loaded files per side
+
+function addFiles(fileList, side){
+  const files = [...fileList];
+  if(!files.length) return;
+  let pending = files.length;
+  files.forEach(f=>{
+    const r = new FileReader();
+    r.onload = e=>{
+      SOURCES[side].push({ name:f.name, text:e.target.result });
+      if(--pending===0){ renderChips(side); run(); }
+    };
+    r.onerror = ()=>{ if(--pending===0){ renderChips(side); run(); } };
+    r.readAsText(f);
+  });
+}
+function loadFile(input, side){ addFiles(input.files, side); input.value=''; }
+
+function removeSource(side, idx){ SOURCES[side].splice(idx,1); renderChips(side); run(); }
+
+function renderChips(side){
+  const host = document.getElementById('chips'+side);
+  host.innerHTML = SOURCES[side].map((s,i)=>{
+    const ko = Math.max(1, Math.round(s.text.length/1024));
+    return `<span class="chip" title="${esc(s.name)}">${esc(s.name)} <span class="cnt">${ko} Ko</span> <span class="x" onclick="removeSource('${side}',${i})">×</span></span>`;
+  }).join('');
+}
+
+['L','R'].forEach(s=>{
+  const d = document.getElementById('drop'+s);
+  d.addEventListener('dragover', e=>{e.preventDefault(); d.classList.add('dragover');});
+  d.addEventListener('dragleave', ()=>d.classList.remove('dragover'));
+  d.addEventListener('drop', e=>{
+    e.preventDefault(); d.classList.remove('dragover');
+    if(e.dataTransfer.files && e.dataTransfer.files.length) addFiles(e.dataTransfer.files, s);
+  });
+});
+
+function clearAll(){
+  SOURCES={L:[],R:[]};
+  ['L','R'].forEach(s=>{ document.getElementById('ta'+s).value=''; document.getElementById('info'+s).textContent=''; document.getElementById('err'+s).textContent=''; renderChips(s); });
+  MODEL={L:null,R:null}; TREE={L:null,R:null}; manualLinks=[]; render();
+}
+function swapSides(){
+  [SOURCES.L, SOURCES.R] = [SOURCES.R, SOURCES.L];
+  const a=document.getElementById('taL').value, b=document.getElementById('taR').value;
+  document.getElementById('taL').value=b; document.getElementById('taR').value=a;
+  renderChips('L'); renderChips('R'); run();
+}
+
+/* Gather all XML source texts for a side: loaded files + pasted textarea */
+function gatherSources(side){
+  const out = SOURCES[side].slice();
+  const pasted = document.getElementById('ta'+side).value.trim();
+  if(pasted) out.push({ name:'(texte collé)', text:pasted });
+  return out;
+}
+
+/* ============================ XML parsing ============================ */
+const lname = n => n.localName || (n.nodeName||'').replace(/^.*:/,'');
+
+function parseXML(text){
+  if(!text.trim()) return { doc:null, error:null };
+  const doc = new DOMParser().parseFromString(text, 'application/xml');
+  const perr = doc.querySelector('parsererror');
+  if(perr) return { doc:null, error: perr.textContent.split('\n')[0] };
+  return { doc, error:null };
+}
+
+/* Parse every source for a side, merge all <schema> blocks into one model. */
+function buildModelForSide(side){
+  const errEl = document.getElementById('err'+side);
+  errEl.textContent='';
+  const sources = gatherSources(side);
+  if(!sources.length) return null;
+  const allSchemas = [];
+  const errs = [];
+  sources.forEach(src=>{
+    const { doc, error } = parseXML(src.text);
+    if(error){ errs.push(src.name+' : '+error); return; }
+    if(doc) collectSchemas(doc).forEach(sc=>allSchemas.push(sc));
+  });
+  if(errs.length) errEl.textContent = '⚠ '+errs.join(' · ');
+  if(!allSchemas.length) return null;
+  return buildModel(allSchemas);
+}
+
+/* ============================ Validator ============================ */
+/* Validate a single source for XML well-formedness, with error location. */
+function validateSource(src){
+  const doc = new DOMParser().parseFromString(src.text || '', 'application/xml');
+  const perr = doc.querySelector('parsererror');
+  if(!perr){
+    const root = doc.documentElement;
+    const ln = lname(root);
+    const kind = ln==='definitions' ? 'WSDL' : ln==='schema' ? 'XSD' : ('XML <'+ln+'>');
+    const schemaCount = collectSchemas(doc).filter(s=>lname(s)==='schema').length;
+    return { ok:true, kind, schemaCount };
+  }
+  const txt = perr.textContent || 'Erreur XML inconnue';
+  const lineM = txt.match(/line\s*(?:number)?\s*:?\s*(\d+)/i);
+  const colM  = txt.match(/column\s*:?\s*(\d+)/i);
+  const line = lineM ? +lineM[1] : null;
+  const col  = colM  ? +colM[1]  : null;
+  const message = txt
+    .replace(/This page contains the following errors:/i, '')
+    .replace(/Below is a rendering of the page up to the first error\.?/i, '')
+    .replace(/\n{2,}/g, '\n').trim();
+  return { ok:false, message, line, col };
+}
+
+/* Build a source-line context snippet with a caret under the error column. */
+function sourceLineContext(text, line, col){
+  const lines = (text||'').split(/\r?\n/);
+  const idx = line - 1;
+  if(idx < 0 || idx >= lines.length) return null;
+  const start = Math.max(0, idx-1);
+  let out = '';
+  for(let i=start; i<=idx; i++){
+    out += `<span class="lno">${String(i+1).padStart(4,' ')} │ </span>${esc(lines[i])}\n`;
+  }
+  if(col && col>0){ out += `<span class="lno">     │ </span>` + ' '.repeat(col-1) + `<span class="caret">^</span>`; }
+  return out;
+}
+
+/* ---- Structural XSD checks (run on the merged model of a side) ---- */
+const XSD_BUILTINS = new Set(['string','boolean','decimal','float','double','duration','dateTime','time','date',
+  'gYearMonth','gYear','gMonthDay','gDay','gMonth','hexBinary','base64Binary','anyURI','QName','NOTATION',
+  'normalizedString','token','language','NMTOKEN','NMTOKENS','Name','NCName','ID','IDREF','IDREFS','ENTITY','ENTITIES',
+  'integer','nonPositiveInteger','negativeInteger','long','int','short','byte','nonNegativeInteger','unsignedLong',
+  'unsignedInt','unsignedShort','unsignedByte','positiveInteger','anyType','anySimpleType','lang']);
+const baseName = p => (p||'').split(/[\\/]/).pop().split('?')[0].trim();
+
+function structuralChecks(side){
+  const model = MODEL[side];
+  if(!model) return null;
+  const schemas = (model.schemas||[]).filter(s=>lname(s)==='schema');
+  if(!schemas.length) return null;
+  const findings = [];
+
+  // --- collect all type/element/group references ---
+  const refs = [];
+  schemas.forEach(sc=>{
+    [...sc.getElementsByTagName('*')].forEach(e=>{
+      const ln = lname(e);
+      const add = (attr, kind) => { const v=e.getAttribute(attr); if(v) v.trim().split(/\s+/).forEach(q=>{ if(q) refs.push({kind, qname:q, name:stripNS(q)}); }); };
+      if(ln==='element'){ if(e.getAttribute('type')) add('type','type'); if(e.getAttribute('ref')) add('ref','element'); }
+      else if(ln==='attribute'){ if(e.getAttribute('type')) add('type','simple'); }
+      else if(ln==='extension'||ln==='restriction'){ if(e.getAttribute('base')) add('base','type'); }
+      else if(ln==='group'){ if(e.getAttribute('ref')) add('ref','group'); }
+      else if(ln==='attributeGroup'){ if(e.getAttribute('ref')) add('ref','attrGroup'); }
+      else if(ln==='list'){ if(e.getAttribute('itemType')) add('itemType','simple'); }
+      else if(ln==='union'){ if(e.getAttribute('memberTypes')) add('memberTypes','simple'); }
+    });
+  });
+
+  // --- 1) unresolved references ---
+  const resolves = (r)=>{
+    if(XSD_BUILTINS.has(r.name)) return true;
+    switch(r.kind){
+      case 'type':    return model.complexTypes.has(r.name) || model.simpleTypes.has(r.name);
+      case 'simple':  return model.simpleTypes.has(r.name) || model.complexTypes.has(r.name);
+      case 'element': return model.globalElements.has(r.name);
+      case 'group':   return model.groups.has(r.name);
+      case 'attrGroup': return model.attrGroups.has(r.name);
+      default: return true;
+    }
+  };
+  const unresolved = new Map();
+  refs.forEach(r=>{ if(!resolves(r)) unresolved.set(r.qname+'|'+r.kind, r); });
+  if(unresolved.size){
+    findings.push({ level:'bad', icon:'❌', title:`${unresolved.size} référence(s) de type non résolue(s)`,
+      items:[...unresolved.values()].map(r=>`<code>${esc(r.qname)}</code> <span class="dim">(${labelKind(r.kind)})</span>`) });
+  }
+
+  // --- 2) imports / includes not loaded ---
+  const loadedNS = new Set(schemas.map(s=>s.getAttribute('targetNamespace')||''));
+  const loadedFiles = new Set(gatherSources(side).map(s=>baseName(s.name).toLowerCase()).filter(Boolean));
+  const impIssues = [];
+  schemas.forEach(sc=>{
+    [...sc.children].forEach(c=>{
+      const ln = lname(c);
+      if(ln==='import'){
+        const ns = c.getAttribute('namespace')||'';
+        if(!loadedNS.has(ns)) impIssues.push(`<code>import</code> namespace <code>${esc(ns||'(aucun)')}</code> <span class="dim">non chargé${c.getAttribute('schemaLocation')?` — schemaLocation="${esc(c.getAttribute('schemaLocation'))}"`:''}</span>`);
+      } else if(ln==='include'){
+        const loc = c.getAttribute('schemaLocation')||'';
+        const bn = baseName(loc).toLowerCase();
+        if(loc && bn && !loadedFiles.has(bn)) impIssues.push(`<code>include</code> <code>${esc(loc)}</code> <span class="dim">fichier non chargé</span>`);
+      }
+    });
+  });
+  if(impIssues.length){
+    findings.push({ level:'warn', icon:'⚠', title:`${impIssues.length} import/include non résolu(s)`, items:impIssues });
+  }
+
+  // --- 3) duplicate names across namespaces ---
+  const defKeys = new Map(); // 'kind:name' -> Map(ns -> count)
+  schemas.forEach(sc=>{
+    const ns = sc.getAttribute('targetNamespace') || '(sans namespace)';
+    [...sc.children].forEach(c=>{
+      const ln = lname(c), nm = c.getAttribute && c.getAttribute('name');
+      if(!nm) return;
+      if(['element','complexType','simpleType','group','attributeGroup'].includes(ln)){
+        const k = ln+':'+nm;
+        if(!defKeys.has(k)) defKeys.set(k, new Map());
+        const m = defKeys.get(k); m.set(ns, (m.get(ns)||0)+1);
+      }
+    });
+  });
+  const dups = [];
+  defKeys.forEach((nsMap, k)=>{
+    const total = [...nsMap.values()].reduce((a,b)=>a+b,0);
+    if(total>1){ const [ln,nm]=k.split(':'); dups.push(`<code>${esc(nm)}</code> <span class="dim">(${ln}) défini ${total}× dans : ${[...nsMap.keys()].map(esc).join(', ')}</span>`); }
+  });
+  if(dups.length){
+    findings.push({ level:'warn', icon:'⚠', title:`${dups.length} doublon(s) de nom`, items:dups });
+  }
+
+  // --- 4) types defined but never used ---
+  const referenced = new Set(refs.map(r=>r.name));
+  const unused = [];
+  const checkUnused = (map, kindLabel)=>{ map.forEach((el,nm)=>{ if(!referenced.has(nm)) unused.push(`<code>${esc(nm)}</code> <span class="dim">(${kindLabel})</span>`); }); };
+  checkUnused(model.complexTypes, 'complexType');
+  checkUnused(model.simpleTypes, 'simpleType');
+  checkUnused(model.groups, 'group');
+  checkUnused(model.attrGroups, 'attributeGroup');
+  if(unused.length){
+    findings.push({ level:'info', icon:'ℹ️', title:`${unused.length} type(s)/groupe(s) défini(s) mais jamais utilisé(s)`, items:unused });
+  }
+
+  return findings;
+}
+function labelKind(k){ return ({type:'type',simple:'type simple',element:'élément',group:'groupe',attrGroup:'groupe d\'attributs'})[k]||k; }
+
+function renderValidator(){
+  const host = document.getElementById('validView');
+  const sL = gatherSources('L'), sR = gatherSources('R');
+  if(!sL.length && !sR.length){
+    host.innerHTML = '<div class="empty">Charge ou colle des fichiers WSDL/XSD pour les valider.</div>';
+    return;
+  }
+  let okCount=0, badCount=0, structFindingCount=0;
+  const groupHTML = (side)=>{
+    const label = side==='L' ? 'Fichier 1 (Source)' : 'Fichier 2 (Cible)';
+    const cls = side==='L' ? 'left' : 'right';
+    const sources = gatherSources(side);
+    let h = `<div class="valgroup"><h3 class="valhead ${cls}">${label}</h3>`;
+    if(!sources.length){ return h + `<div class="valcard muted">Aucun fichier chargé.</div></div>`; }
+    sources.forEach(src=>{
+      const v = validateSource(src);
+      if(v.ok){
+        okCount++;
+        h += `<div class="valcard ok"><div class="valtitle">✅ ${esc(src.name)}</div>`+
+             `<div class="valmsg">XML bien formé — type détecté : ${v.kind}`+
+             `${v.schemaCount ? ` · ${v.schemaCount} schéma(s) trouvé(s)` : ''}.</div></div>`;
+      } else {
+        badCount++;
+        const loc = [v.line?`ligne ${v.line}`:'', v.col?`colonne ${v.col}`:''].filter(Boolean).join(', ');
+        let ctx = '';
+        if(v.line){ const c = sourceLineContext(src.text, v.line, v.col||1); if(c) ctx = `<pre class="valctx">${c}</pre>`; }
+        h += `<div class="valcard bad"><div class="valtitle">❌ ${esc(src.name)}${loc?` — ${loc}`:''}</div>`+
+             `<div class="valmsg">${esc(v.message)}</div>${ctx}</div>`;
+      }
+    });
+    // structural checks on the merged model of this side
+    const findings = structuralChecks(side);
+    if(findings){
+      h += `<div class="valsub">Contrôles structurels</div>`;
+      if(!findings.length){
+        h += `<div class="valcard ok"><div class="valtitle">✅ Aucun problème structurel détecté</div>`+
+             `<div class="valmsg">Références résolues · imports/includes OK · pas de doublon · pas de type inutilisé.</div></div>`;
+      } else {
+        structFindingCount += findings.filter(f=>f.level==='bad'||f.level==='warn').length;
+        findings.forEach(f=>{
+          h += `<div class="valcard ${f.level}"><div class="valtitle ${f.level==='warn'?'warnt':''}">${f.icon} ${esc(f.title)}</div>`+
+               `<ul class="valitems">${f.items.map(it=>`<li>${it}</li>`).join('')}</ul></div>`;
+        });
+      }
+    }
+    return h + `</div>`;
+  };
+  const body = groupHTML('L') + groupHTML('R');
+  const summary = `<div class="valsummary">`+
+    `<span class="pill match">${okCount} fichier(s) valide(s)</span>`+
+    (badCount ? `<span class="pill onlyleft">${badCount} en erreur</span>` : '')+
+    (structFindingCount ? `<span class="pill warn">⚠ ${structFindingCount} problème(s) structurel(s)</span>` : '')+
+    `</div>`;
+  host.innerHTML = summary + body;
+}
+
+// Find all <schema> roots whether the file is a raw XSD or a WSDL embedding schemas.
+function collectSchemas(doc){
+  const all = [...doc.getElementsByTagName('*')];
+  const schemas = all.filter(e => lname(e)==='schema');
+  if(schemas.length) return schemas;
+  // fallback: treat document element as a pseudo-schema container
+  return [doc.documentElement];
+}
+
+function buildModel(schemas){
+  const m = { schemas, globalElements:new Map(), complexTypes:new Map(), simpleTypes:new Map(),
+              groups:new Map(), attrGroups:new Map(), targetNS:'' };
+  schemas.forEach(sc=>{
+    if(sc.getAttribute && sc.getAttribute('targetNamespace')) m.targetNS = sc.getAttribute('targetNamespace');
+    for(const c of [...sc.children]){
+      const ln = lname(c), nm = c.getAttribute && c.getAttribute('name');
+      if(!nm) continue;
+      if(ln==='element')        m.globalElements.set(nm, c);
+      else if(ln==='complexType') m.complexTypes.set(nm, c);
+      else if(ln==='simpleType')  m.simpleTypes.set(nm, c);
+      else if(ln==='group')       m.groups.set(nm, c);
+      else if(ln==='attributeGroup') m.attrGroups.set(nm, c);
+    }
+  });
+  // Also index nested named complexTypes (some WSDL/XSD put them deeper)
+  schemas.forEach(sc=>{
+    [...sc.getElementsByTagName('*')].forEach(e=>{
+      const ln=lname(e), nm=e.getAttribute&&e.getAttribute('name');
+      if(!nm) return;
+      if(ln==='complexType' && !m.complexTypes.has(nm)) m.complexTypes.set(nm,e);
+      if(ln==='simpleType'  && !m.simpleTypes.has(nm))  m.simpleTypes.set(nm,e);
+    });
+  });
+  return m;
+}
+
+const stripNS = t => (t||'').replace(/^.*:/,'');
+
+/* Resolve a type's children. Returns array of {name,type,card,attr,children} */
+function expandType(typeEl, model, visited, depth){
+  const out = [];
+  if(!typeEl || depth>40) return out;
+  // attributes directly under complexType
+  collectChildElements(typeEl, model, out, visited, depth);
+  return out;
+}
+
+function collectChildElements(container, model, out, visited, depth){
+  for(const c of [...container.children]){
+    const ln = lname(c);
+    if(['sequence','choice','all','complexContent','simpleContent','extension','restriction','group'].includes(ln)){
+      if(ln==='group'){
+        const ref = stripNS(c.getAttribute('ref')||'');
+        const g = model.groups.get(ref);
+        if(g && !visited.has('g:'+ref)){ const v2=new Set(visited); v2.add('g:'+ref); collectChildElements(g, model, out, v2, depth+1); }
+      } else if((ln==='extension'||ln==='restriction')){
+        const base = stripNS(c.getAttribute('base')||'');
+        const bt = model.complexTypes.get(base);
+        if(bt && !visited.has('t:'+base)){ const v2=new Set(visited); v2.add('t:'+base); collectChildElements(bt, model, out, v2, depth+1); }
+        collectChildElements(c, model, out, visited, depth);
+      } else {
+        collectChildElements(c, model, out, visited, depth);
+      }
+    } else if(ln==='element'){
+      out.push(makeElementNode(c, model, visited, depth));
+    } else if(ln==='attribute'){
+      const nm = c.getAttribute('name') || stripNS(c.getAttribute('ref')||'');
+      const req = c.getAttribute('use')==='required';
+      if(nm) out.push({ name:nm, type:stripNS(c.getAttribute('type')||''), card:req?'1':'0..1', occ:req?'1..1':'0..1', attr:true, children:[] });
+    } else if(ln==='attributeGroup'){
+      const ref = stripNS(c.getAttribute('ref')||'');
+      const ag = model.attrGroups.get(ref);
+      if(ag && !visited.has('ag:'+ref)){ const v2=new Set(visited); v2.add('ag:'+ref); collectChildElements(ag, model, out, v2, depth+1); }
+    }
+  }
+}
+
+function makeElementNode(el, model, visited, depth){
+  let name = el.getAttribute('name');
+  const ref  = stripNS(el.getAttribute('ref')||'');
+  let typeName = stripNS(el.getAttribute('type')||'');
+  const minO = el.getAttribute('minOccurs'), maxO = el.getAttribute('maxOccurs');
+  let children = [];
+
+  // ref to a global element
+  if(!name && ref){
+    name = ref;
+    const g = model.globalElements.get(ref);
+    if(g){ typeName = stripNS(g.getAttribute('type')||'') || typeName;
+           if(!typeName && !visited.has('e:'+ref)){ const v2=new Set(visited); v2.add('e:'+ref);
+             children = expandInline(g, model, v2, depth+1); } }
+  }
+
+  // inline complexType
+  if(!children.length){
+    const inlineCT = [...el.children].find(x=>lname(x)==='complexType');
+    if(inlineCT){ children = expandType(inlineCT, model, visited, depth+1); }
+  }
+  // named complexType
+  if(!children.length && typeName){
+    const ct = model.complexTypes.get(typeName);
+    if(ct && !visited.has('t:'+typeName)){ const v2=new Set(visited); v2.add('t:'+typeName); children = expandType(ct, model, v2, depth+1); }
+  }
+
+  const card = cardinality(minO, maxO);
+  return { name: name||'(anonyme)', type:typeName, card, occ:occString(minO, maxO), attr:false, children };
+}
+
+function expandInline(el, model, visited, depth){
+  const inlineCT = [...el.children].find(x=>lname(x)==='complexType');
+  if(inlineCT) return expandType(inlineCT, model, visited, depth);
+  const tn = stripNS(el.getAttribute('type')||'');
+  const ct = tn && model.complexTypes.get(tn);
+  if(ct && !visited.has('t:'+tn)){ const v2=new Set(visited); v2.add('t:'+tn); return expandType(ct, model, v2, depth); }
+  return [];
+}
+
+function cardinality(minO, maxO){
+  const mn = minO==null?'1':minO;
+  const mx = maxO==null?'1':(maxO==='unbounded'?'*':maxO);
+  if(mn==='1'&&mx==='1') return '';
+  return mn+'..'+mx;
+}
+/* Always returns the full min..max occurrence, e.g. "1..1", "0..1", "1..*" */
+function occString(minO, maxO){
+  const mn = minO==null?'1':minO;
+  const mx = maxO==null?'1':(maxO==='unbounded'?'*':maxO);
+  return mn+'..'+mx;
+}
+
+/* Build the field tree: roots = global elements (or, if none, named complexTypes) */
+function buildTree(model){
+  const roots = [];
+  let entries = [...model.globalElements.entries()];
+  if(!entries.length){
+    // No global element: surface named complexTypes as roots
+    entries = [...model.complexTypes.entries()].map(([n,e])=>[n,e]);
+  }
+  for(const [nm, el] of entries){
+    const visited = new Set();
+    let children, typeName = stripNS(el.getAttribute('type')||'');
+    if(lname(el)==='complexType'){ visited.add('t:'+nm); children = expandType(el, model, visited, 0); }
+    else { visited.add('e:'+nm); children = expandInline(el, model, visited, 0); if(!children.length){ const ct=model.complexTypes.get(typeName); if(ct){visited.add('t:'+typeName); children=expandType(ct,model,visited,0);} } }
+    roots.push({ name:nm, type:typeName, card:'', occ:'', attr:false, children });
+  }
+  return { name:'(racine)', type:'', card:'', occ:'', attr:false, children: roots, root:true };
+}
+
+/* Assign stable keys + path to every node */
+function indexTree(node, side, parentPath, store, keyCounter){
+  if(!node.root){
+    const path = parentPath ? parentPath+'/'+node.name : node.name;
+    node.path = path;
+    node.key = side+':'+ (keyCounter.n++);
+    node.side = side;
+    store[node.key] = node;
+  }
+  const base = node.root ? '' : node.path;
+  (node.children||[]).forEach(ch=>indexTree(ch, side, base, store, keyCounter));
+}
+
+const norm = s => (s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+
+/* ============================ Matching ============================ */
+function computeMatches(){
+  MATCH = new Map();
+  const byPath = document.getElementById('matchPath').checked;
+  const Lnodes = Object.values(NODES.L), Rnodes = Object.values(NODES.R);
+  const keyOf = n => byPath ? norm(n.path) : norm(n.name);
+
+  const rIndex = new Map();   // matchKey -> [nodes]
+  Rnodes.forEach(n=>{ const k=keyOf(n); if(!rIndex.has(k)) rIndex.set(k,[]); rIndex.get(k).push(n); });
+  const usedR = new Set();
+
+  // pass 1: exact path match (always strong); pass 2: name match
+  const tryMatch = (predicateKey) => {
+    Lnodes.forEach(l=>{
+      if(MATCH.has(l.key)) return;
+      const k = predicateKey(l);
+      const cands = rIndex.get(k);
+      if(!cands) return;
+      const r = cands.find(x=>!usedR.has(x.key));
+      if(r){ MATCH.set(l.key, r.key); MATCH.set(r.key, l.key); usedR.add(r.key); l._m=true; r._m=true; }
+    });
+  };
+  Lnodes.forEach(n=>n._m=false); Rnodes.forEach(n=>n._m=false);
+  const autoOn = document.getElementById('autoMap').checked;
+  if(autoOn){
+    if(!byPath){
+      // prefer full-path match first, then fall back to leaf name
+      tryMatch(l=>norm(l.path));
+      tryMatch(l=>keyOf(l));
+    } else {
+      tryMatch(l=>keyOf(l));
+    }
+  }
+  // manual links override
+  manualLinks.forEach(({l,r})=>{
+    if(NODES.L[l]&&NODES.R[r]){ MATCH.set(l,r); MATCH.set(r,l); NODES.L[l]._m=true; NODES.R[r]._m=true; }
+  });
+  computeWarnings();
+}
+
+/* For every matched pair, detect type (on leaf fields) / occurrence discrepancies. */
+function computeWarnings(){
+  Object.values(NODES.L).forEach(n=>{ n._warn=false; n._warnList=null; });
+  Object.values(NODES.R).forEach(n=>{ n._warn=false; n._warnList=null; });
+  const lc = s => (s||'').toLowerCase();
+  MATCH.forEach((rk, lk)=>{
+    if(!lk.startsWith('L:')) return;           // iterate L→R direction only
+    const l = NODES.L[lk], r = NODES.R[rk];
+    if(!l || !r) return;
+    const leaf = !(l.children&&l.children.length) && !(r.children&&r.children.length);
+    const diffs = [];
+    // type discrepancy only on leaf fields (container "type" = complexType name, expected to differ)
+    if(leaf && (l.type||r.type) && lc(l.type)!==lc(r.type)) diffs.push('type');
+    if((l.occ||'')!==(r.occ||'')) diffs.push('occ');
+    if(diffs.length){ l._warn=true; r._warn=true; l._warnList=diffs; r._warnList=diffs; }
+  });
+}
+function warnLabel(list){
+  if(!list||!list.length) return '';
+  return list.map(d=>d==='type'?'type différent':'cardinalité différente').join(' · ');
+}
+
+/* ============================ Run ============================ */
+function run(){
+  MODEL.L = buildModelForSide('L');
+  MODEL.R = buildModelForSide('R');
+  TREE.L = MODEL.L ? buildTree(MODEL.L) : null;
+  TREE.R = MODEL.R ? buildTree(MODEL.R) : null;
+  NODES = { L:{}, R:{} };
+  if(TREE.L) indexTree(TREE.L,'L','',NODES.L,{n:0});
+  if(TREE.R) indexTree(TREE.R,'R','',NODES.R,{n:0});
+  if(TREE.L && TREE.R) computeMatches();
+  selected={L:null,R:null};
+  render();
+}
+
+/* Toggle automatic mapping on/off. Off = manual mapping only. */
+function toggleAuto(){
+  const auto = document.getElementById('autoMap').checked;
+  document.getElementById('matchPath').disabled = !auto;   // path option only relevant in auto mode
+  run();
+}
+
+/* Remove every manual mapping the user created. */
+function clearManualLinks(){
+  if(!manualLinks.length) return;
+  manualLinks = [];
+  if(TREE.L && TREE.R){ computeMatches(); render(); }
+}
+
+/* ============================ Rendering ============================ */
+function nodeStateClass(n){
+  if(!TREE.L || !TREE.R) return 'matched';
+  return n._m ? 'matched' : 'unmatched';
+}
+
+function renderTree(node, side, container){
+  container.innerHTML='';
+  (node.children||[]).forEach(ch=>container.appendChild(renderNode(ch, side, 0)));
+}
+
+function renderNode(n, side, depth){
+  const wrap = document.createElement('div');
+  const row = document.createElement('div');
+  const hasKids = n.children && n.children.length;
+  const matched = TREE.L && TREE.R ? n._m : true;
+  row.className = 'node ' + (matched?'matched':'unmatched') + (n._warn?' warn':'') + (n.attr?' attr':'');
+  row.dataset.key = n.key;
+  n._row = row;
+
+  const tw = document.createElement('span'); tw.className='tw';
+  tw.textContent = hasKids ? '▸' : '';
+  if(hasKids){ tw.onclick = e=>{ e.stopPropagation(); toggle(wrap, tw); }; }
+
+  const anchor = document.createElement('span'); anchor.className='anchor';
+  const nm = document.createElement('span'); nm.className='nm'; nm.textContent = n.name;
+  const ty = document.createElement('span'); ty.className='ty'; ty.textContent = n.type? ':'+n.type : '';
+  const occ = document.createElement('span'); occ.className='occ';
+  if(n.occ){ occ.textContent = '['+n.occ+']'; occ.title = 'minOccurs..maxOccurs'; }
+
+  row.append(tw, anchor, nm, ty, occ);
+  if(n._warn){
+    const w = document.createElement('span'); w.className='warnicon'; w.textContent='⚠';
+    w.title = 'Écart : '+warnLabel(n._warnList);
+    row.append(w);
+  }
+
+  row.onclick = ()=>selectNode(n, side);
+  wrap.appendChild(row);
+
+  if(hasKids){
+    const kids = document.createElement('div'); kids.className='children';
+    n.children.forEach(c=>kids.appendChild(renderNode(c, side, depth+1)));
+    wrap.appendChild(kids);
+  }
+  return wrap;
+}
+
+function toggle(wrap, tw){
+  const kids = wrap.querySelector(':scope > .children');
+  if(!kids) return;
+  const hidden = kids.classList.toggle('hidden');
+  tw.textContent = hidden ? '▸' : '▾';
+  drawLinks();
+}
+
+function expandAll(open){
+  document.querySelectorAll('#mapWrap .children').forEach(k=>k.classList.toggle('hidden', !open));
+  document.querySelectorAll('#mapWrap .node .tw').forEach(tw=>{ if(tw.textContent) tw.textContent = open?'▾':'▸'; });
+  drawLinks();
+}
+
+function selectNode(n, side){
+  selected[side] = n.key;
+  // visual
+  document.querySelectorAll('.node.selected').forEach(e=>e.classList.remove('selected'));
+  if(selected.L && NODES.L[selected.L]?._row) NODES.L[selected.L]._row.classList.add('selected');
+  if(selected.R && NODES.R[selected.R]?._row) NODES.R[selected.R]._row.classList.add('selected');
+  // if both sides selected -> create manual link
+  if(selected.L && selected.R){
+    manualLinks = manualLinks.filter(x=>x.l!==selected.L && x.r!==selected.R);
+    manualLinks.push({l:selected.L, r:selected.R});
+    computeMatches();
+    const l=selected.L, r=selected.R; selected={L:null,R:null};
+    render();
+    return;
+  }
+  drawLinks();
+}
+
+function render(){
+  const ready = TREE.L && TREE.R;
+  document.getElementById('mapEmpty').style.display = (TREE.L||TREE.R)? 'none':'flex';
+  document.getElementById('legend').style.display = ready? 'flex':'none';
+  if(TREE.L) renderTree(TREE.L,'L',document.getElementById('treeLbody')); else document.getElementById('treeLbody').innerHTML='';
+  if(TREE.R) renderTree(TREE.R,'R',document.getElementById('treeRbody')); else document.getElementById('treeRbody').innerHTML='';
+  applyVisibility();
+  renderStats();
+  renderDiff();
+  renderValidator();
+  requestAnimationFrame(drawLinks);
+}
+
+/* Combined visibility: "différences seulement" + barre de recherche.
+   A node is shown if its subtree still has something to show; ancestors of a
+   matching field stay visible so the path/context remains readable. */
+function applyVisibility(){
+  if(!TREE.L || !TREE.R) return;
+  const q = norm(document.getElementById('search').value);
+  const only = document.getElementById('onlyDiff').checked;
+  // When a filter is active, auto-expand all branches so matches are reachable
+  if(q || only){
+    document.querySelectorAll('#mapWrap .children').forEach(k=>k.classList.remove('hidden'));
+    document.querySelectorAll('#mapWrap .node .tw').forEach(tw=>{ if(tw.textContent) tw.textContent='▾'; });
+  }
+  ['L','R'].forEach(side=>{
+    Object.values(NODES[side]).forEach(n=>{
+      if(!n._row) return;
+      const searchOK = !q || subtreeHasMatch(n, q);
+      const diffOK   = !only || hasUnmatchedDesc(n);
+      n._row.parentNode.classList.toggle('hidden', !(searchOK && diffOK));
+      const nm = n._row.querySelector('.nm');
+      if(nm) nm.classList.toggle('hl', !!q && norm(n.path).includes(q));
+    });
+  });
+}
+function nodeHit(n, q){ return norm(n.path).includes(q); }
+function subtreeHasMatch(n, q){
+  if(nodeHit(n, q)) return true;
+  return (n.children||[]).some(c=>subtreeHasMatch(c, q));
+}
+function hasUnmatchedDesc(n){
+  if(!n._m || n._warn) return true;   // unmatched OR matched-with-discrepancy counts as a difference
+  return (n.children||[]).some(hasUnmatchedDesc);
+}
+
+/* ============================ Links (SVG) ============================ */
+function drawLinks(){
+  const svg = document.getElementById('linkLayer');
+  const wrap = document.getElementById('mapWrap');
+  if(!TREE.L || !TREE.R){ svg.innerHTML=''; return; }
+  const wr = wrap.getBoundingClientRect();
+  svg.setAttribute('viewBox', `0 0 ${wr.width} ${wr.height}`);
+  const lpanel = document.getElementById('treeL').getBoundingClientRect();
+  const rpanel = document.getElementById('treeR').getBoundingClientRect();
+  let html='';
+  const seen=new Set();
+  Object.values(NODES.L).forEach(l=>{
+    const rk = MATCH.get(l.key); if(!rk) return;
+    if(seen.has(l.key)) return; seen.add(l.key);
+    const r = NODES.R[rk]; if(!r||!l._row||!r._row) return;
+    const la = l._row.querySelector('.anchor'), ra = r._row.querySelector('.anchor');
+    if(!isVisible(l._row)||!isVisible(r._row)) return;
+    const lb = la.getBoundingClientRect(), rb = ra.getBoundingClientRect();
+    // clip to panel vertical bounds
+    const y1 = lb.top + lb.height/2 - wr.top;
+    const y2 = rb.top + rb.height/2 - wr.top;
+    if(y1 < lpanel.top - wr.top || y1 > lpanel.bottom - wr.top) return;
+    if(y2 < rpanel.top - wr.top || y2 > rpanel.bottom - wr.top) return;
+    // Fichier 1: start the line AFTER the content (occ badge / type / name) so it
+    // doesn't cross over the element name. Fichier 2 keeps its left-side anchor.
+    const lend = l._row.querySelector('.warnicon')
+              || (l._row.querySelector('.occ').textContent && l._row.querySelector('.occ'))
+              || (l._row.querySelector('.ty').textContent && l._row.querySelector('.ty'))
+              || l._row.querySelector('.nm');
+    const x1 = lend.getBoundingClientRect().right - wr.left + 8;
+    const x2 = rb.left + rb.width/2 - wr.left;
+    const isManual = manualLinks.some(m=>m.l===l.key && m.r===rk);
+    const col = isManual ? 'var(--accent)' : (l._warn ? 'var(--warn)' : 'var(--match)');
+    const mx = (x1+x2)/2;
+    html += `<path d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}" fill="none" stroke="${col}" stroke-width="${isManual?2:1.2}" opacity="${isManual?0.95:0.6}"/>`;
+  });
+  svg.innerHTML = html;
+}
+function isVisible(el){
+  let p = el;
+  while(p && p.id!=='mapWrap'){ if(p.classList && p.classList.contains('hidden')) return false; p=p.parentNode; }
+  return el.offsetParent !== null;
+}
+document.getElementById('treeL').addEventListener('scroll', drawLinks);
+document.getElementById('treeR').addEventListener('scroll', drawLinks);
+window.addEventListener('resize', drawLinks);
+
+/* ============================ Stats ============================ */
+function flat(side){ return Object.values(NODES[side]); }
+function renderStats(){
+  const el = document.getElementById('stats');
+  if(!TREE.L || !TREE.R){ el.innerHTML=''; return; }
+  const L=flat('L'), R=flat('R');
+  const matched = L.filter(n=>n._m).length;
+  const warned  = L.filter(n=>n._m && n._warn).length;
+  const clean   = matched - warned;
+  const onlyL = L.length - matched;
+  const onlyR = R.filter(n=>!n._m).length;
+  el.innerHTML =
+    `<span class="stat match">⟷ ${clean} appariés</span>`+
+    (warned ? `<span class="stat warn">⚠ ${warned} écart(s)</span>` : '')+
+    `<span class="stat onlyleft">◀ ${onlyL} uniq. F1</span>`+
+    `<span class="stat onlyright">▶ ${onlyR} uniq. F2</span>`+
+    `<span class="stat total">Σ F1:${L.length} · F2:${R.length}</span>`;
+}
+
+/* ============================ Diff table ============================ */
+let diffSort = {col:'status', dir:1};
+function buildDiffRows(){
+  const rows=[];
+  if(!TREE.L||!TREE.R) return rows;
+  const L=flat('L'), R=flat('R');
+  L.forEach(l=>{
+    const rk = MATCH.get(l.key);
+    if(rk){ const r=NODES.R[rk];
+      const wl = l._warn ? (l._warnList||[]) : [];
+      rows.push({status: l._warn?'warn':'match', warn:wl, left:l.path, lt:l.type, lo:l.occ||'', right:r.path, rt:r.type, ro:r.occ||''}); }
+    else  { rows.push({status:'onlyleft', warn:[], left:l.path, lt:l.type, lo:l.occ||'', right:'', rt:'', ro:''}); }
+  });
+  R.forEach(r=>{ if(!r._m) rows.push({status:'onlyright', warn:[], left:'', lt:'', lo:'', right:r.path, rt:r.type, ro:r.occ||''}); });
+  return rows;
+}
+function renderDiff(){
+  const host = document.getElementById('diffView');
+  if(!TREE.L||!TREE.R){ host.innerHTML = '<div class="empty">Charge deux fichiers puis clique Comparer.</div>'; return; }
+  let rows = buildDiffRows();
+  const only = document.getElementById('onlyDiff').checked;
+  if(only) rows = rows.filter(r=>r.status!=='match');
+  const q = norm(document.getElementById('search').value);
+  if(q) rows = rows.filter(r=>norm(r.left).includes(q)||norm(r.right).includes(q));
+  const order={onlyleft:0,onlyright:1,warn:2,match:3};
+  rows.sort((a,b)=>{
+    let v=0;
+    if(diffSort.col==='status') v=(order[a.status]-order[b.status]);
+    else v = (a[diffSort.col]||'').localeCompare(b[diffSort.col]||'');
+    return v*diffSort.dir || (a.left||a.right).localeCompare(b.left||b.right);
+  });
+  const pill = s => s==='match'?'<span class="pill match">apparié</span>'
+    : s==='warn'?'<span class="pill warn">⚠ écart</span>'
+    : s==='onlyleft'?'<span class="pill onlyleft">uniq. F1</span>':'<span class="pill onlyright">uniq. F2</span>';
+  let html = `<table><thead><tr>
+     <th onclick="sortDiff('status')">Statut</th>
+     <th onclick="sortDiff('left')">Champ — Fichier 1</th>
+     <th onclick="sortDiff('lt')">Type F1</th>
+     <th onclick="sortDiff('lo')">Occ. F1</th>
+     <th onclick="sortDiff('right')">Champ — Fichier 2</th>
+     <th onclick="sortDiff('rt')">Type F2</th>
+     <th onclick="sortDiff('ro')">Occ. F2</th></tr></thead><tbody>`;
+  rows.forEach(r=>{
+    const wt = (r.warn||[]).includes('type') ? ' celldiff' : '';
+    const wo = (r.warn||[]).includes('occ')  ? ' celldiff' : '';
+    html += `<tr><td>${pill(r.status)}</td>
+      <td class="path">${esc(r.left)}</td><td class="path${wt}">${esc(r.lt)}</td><td class="path occ-cell${wo}">${esc(r.lo)}</td>
+      <td class="path">${esc(r.right)}</td><td class="path${wt}">${esc(r.rt)}</td><td class="path occ-cell${wo}">${esc(r.ro)}</td></tr>`;
+  });
+  html += `</tbody></table>`;
+  if(!rows.length) html = '<div class="empty">Aucun élément à afficher.</div>';
+  host.innerHTML = html;
+}
+function sortDiff(col){ diffSort.dir = (diffSort.col===col)? -diffSort.dir : 1; diffSort.col=col; renderDiff(); }
+const esc = s => (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+/* ============================ Filter ============================ */
+function applyFilter(){
+  applyVisibility();
+  renderDiff();
+  requestAnimationFrame(drawLinks);
+}
+
+/* ============================ Tabs ============================ */
+function switchTab(t){
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active', x.dataset.tab===t));
+  document.getElementById('mapView').classList.toggle('active', t==='map');
+  document.getElementById('diffViewTab').classList.toggle('active', t==='diff');
+  document.getElementById('validViewTab').classList.toggle('active', t==='valid');
+  if(t==='valid') renderValidator();
+  if(t==='map') requestAnimationFrame(drawLinks);
+}
+
+/* ============================ Export ============================ */
+function exportCSV(){
+  const rows = buildDiffRows();
+  if(!rows.length) return alert('Rien à exporter — lance d\'abord une comparaison.');
+  let csv = 'statut;ecart;champ_fichier1;type_f1;occ_f1;champ_fichier2;type_f2;occ_f2\n';
+  rows.forEach(r=>{ const ec = warnLabel(r.warn); csv += [r.status,ec,r.left,r.lt,r.lo,r.right,r.rt,r.ro].map(v=>'"'+(v||'').replace(/"/g,'""')+'"').join(';')+'\n'; });
+  download(csv, 'comparaison-wsdl-xsd.csv', 'text/csv');
+}
+function exportJSON(){
+  const rows = buildDiffRows();
+  if(!rows.length) return alert('Rien à exporter — lance d\'abord une comparaison.');
+  const out = {
+    genere: new Date().toISOString(),
+    fichier1: document.getElementById('infoL').textContent || 'Fichier 1',
+    fichier2: document.getElementById('infoR').textContent || 'Fichier 2',
+    resume: {
+      appariés: rows.filter(r=>r.status==='match').length,
+      uniquement_f1: rows.filter(r=>r.status==='onlyleft').length,
+      uniquement_f2: rows.filter(r=>r.status==='onlyright').length
+    },
+    mappings: rows
+  };
+  download(JSON.stringify(out,null,2), 'comparaison-wsdl-xsd.json', 'application/json');
+}
+function download(content, name, type){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content],{type}));
+  a.download = name; a.click(); URL.revokeObjectURL(a.href);
+}
+
+/* ============================ Theme ============================ */
+function applyTheme(theme){
+  document.documentElement.setAttribute('data-theme', theme);
+  const btn = document.getElementById('themeBtn');
+  if(btn) btn.textContent = theme==='light' ? '☀️ Clair' : '🌙 Sombre';
+  try{ localStorage.setItem('wxm-theme', theme); }catch(e){}
+  if(TREE.L && TREE.R) requestAnimationFrame(drawLinks);
+}
+function toggleTheme(){
+  const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+  applyTheme(cur==='light' ? 'dark' : 'light');
+}
+(function initTheme(){
+  let t = 'dark';
+  try{ t = localStorage.getItem('wxm-theme') || 'dark'; }catch(e){}
+  applyTheme(t);
+})();
+
+/* ============================ Sample ============================ */
+function loadSample(){
+  SOURCES={L:[],R:[]}; renderChips('L'); renderChips('R');
+  document.getElementById('taL').value = SAMPLE_WSDL;
+  document.getElementById('taR').value = SAMPLE_XSD;
+  document.getElementById('infoL').textContent = 'exemple-service.wsdl';
+  document.getElementById('infoR').textContent = 'exemple-facture.xsd';
+  run();
+}
+const SAMPLE_WSDL = `<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+  xmlns:tns="urn:facture"
+  targetNamespace="urn:facture">
+  <wsdl:types>
+    <xsd:schema targetNamespace="urn:facture">
+      <xsd:element name="Facture" type="tns:FactureType"/>
+      <xsd:complexType name="FactureType">
+        <xsd:sequence>
+          <xsd:element name="Identifiant" type="xsd:string"/>
+          <xsd:element name="DateEmission" type="xsd:date"/>
+          <xsd:element name="Vendeur" type="tns:PartieType"/>
+          <xsd:element name="Acheteur" type="tns:PartieType"/>
+          <xsd:element name="MontantTotalHT" type="xsd:decimal"/>
+          <xsd:element name="MontantTVA" type="xsd:decimal"/>
+          <xsd:element name="Lignes" type="tns:LigneType" maxOccurs="unbounded"/>
+        </xsd:sequence>
+        <xsd:attribute name="devise" type="xsd:string" use="required"/>
+      </xsd:complexType>
+      <xsd:complexType name="PartieType">
+        <xsd:sequence>
+          <xsd:element name="Nom" type="xsd:string"/>
+          <xsd:element name="SIRET" type="xsd:string"/>
+          <xsd:element name="Adresse" type="xsd:string"/>
+        </xsd:sequence>
+      </xsd:complexType>
+      <xsd:complexType name="LigneType">
+        <xsd:sequence>
+          <xsd:element name="Designation" type="xsd:string"/>
+          <xsd:element name="Quantite" type="xsd:decimal"/>
+          <xsd:element name="PrixUnitaire" type="xsd:decimal"/>
+        </xsd:sequence>
+      </xsd:complexType>
+    </xsd:schema>
+  </wsdl:types>
+</wsdl:definitions>`;
+const SAMPLE_XSD = `<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  xmlns:t="urn:facture-cible" targetNamespace="urn:facture-cible">
+  <xs:element name="Invoice" type="t:InvoiceType"/>
+  <xs:complexType name="InvoiceType">
+    <xs:sequence>
+      <xs:element name="Identifiant" type="xs:string"/>
+      <xs:element name="DateEmission" type="xs:date"/>
+      <xs:element name="DateEcheance" type="xs:date"/>
+      <xs:element name="Vendeur" type="t:PartyType"/>
+      <xs:element name="Acheteur" type="t:PartyType"/>
+      <xs:element name="MontantTotalHT" type="xs:decimal"/>
+      <xs:element name="MontantTVA" type="xs:decimal"/>
+      <xs:element name="MontantTTC" type="xs:decimal"/>
+      <xs:element name="Lignes" type="t:LineType" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="devise" type="xs:string"/>
+  </xs:complexType>
+  <xs:complexType name="PartyType">
+    <xs:sequence>
+      <xs:element name="Nom" type="xs:string"/>
+      <xs:element name="SIRET" type="xs:string"/>
+      <xs:element name="TVAIntracom" type="xs:string"/>
+      <xs:element name="Adresse" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="LineType">
+    <xs:sequence>
+      <xs:element name="Designation" type="xs:string"/>
+      <xs:element name="Quantite" type="xs:decimal"/>
+      <xs:element name="PrixUnitaire" type="xs:decimal"/>
+      <xs:element name="TauxTVA" type="xs:decimal"/>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema>`;
+</script>
+</body>
+</html>
