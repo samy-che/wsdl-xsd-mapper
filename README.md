@@ -4,7 +4,9 @@ Application web autonome (un seul fichier HTML, **100 % local, hors-ligne, aucun
 
 ## Utilisation
 
-Ouvre simplement [`wsdl-xsd-mapper.html`](wsdl-xsd-mapper.html) dans un navigateur (double-clic). Aucune installation, aucun serveur.
+Ouvre simplement [`index.html`](index.html) dans un navigateur (double-clic). Aucune installation, aucun serveur.
+
+Démo en ligne : **https://samy-che.github.io/wsdl-xsd-mapper/**
 
 ## Fonctionnalités
 
